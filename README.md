@@ -53,7 +53,7 @@ pip install doug
 ### From source
 
 ```bash
-git clone https://github.com/dougallpress/doug.git
+git clone https://github.com/allpress/doug.git
 cd doug
 pip install -e .
 ```
@@ -231,7 +231,7 @@ print(query.quick_overview())
 
 ```bash
 # Clone and install in dev mode
-git clone https://github.com/dougallpress/doug.git
+git clone https://github.com/allpress/doug.git
 cd doug
 pip install -e ".[dev]"
 
