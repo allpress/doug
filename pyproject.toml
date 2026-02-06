@@ -1,0 +1,90 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "doug"
+version = "1.0.0"
+description = "Multi-repository context caching and indexing for AI coding assistants"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [
+    {name = "Doug Contributors"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Version Control :: Git",
+]
+keywords = ["ai", "caching", "indexing", "repository", "context", "rag", "coding-assistant"]
+
+# Core has ZERO external dependencies
+dependencies = []
+
+[project.optional-dependencies]
+plugins = [
+    "playwright>=1.40.0",
+    "requests>=2.31.0",
+]
+rag = [
+    "sentence-transformers>=2.2.0",
+    "chromadb>=0.4.0",
+]
+security = [
+    "keyring>=24.0.0",
+]
+all = [
+    "playwright>=1.40.0",
+    "requests>=2.31.0",
+    "sentence-transformers>=2.2.0",
+    "chromadb>=0.4.0",
+    "keyring>=24.0.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+
+[project.scripts]
+doug = "doug.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/allpress/doug"
+Documentation = "https://github.com/allpress/doug#readme"
+Repository = "https://github.com/allpress/doug"
+Issues = "https://github.com/allpress/doug/issues"
+
+[tool.setuptools.packages.find]
+include = ["doug*"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

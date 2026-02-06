@@ -1,0 +1,49 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Doug runtime data
+repositories/
+cache/
+config/plugins/*/.auth/
+config/defaults.ini
+config/repositories/*.txt
+!config/repositories/.gitkeep
+
+# Auth and credentials
+*.auth.json
+.auth/
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# RAG data
+cache/rag/
+
+
