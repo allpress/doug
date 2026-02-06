@@ -13,7 +13,7 @@ import re
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from doug.config import DougConfig
@@ -30,6 +30,7 @@ def _extract_repo_name(url: str) -> str:
     Handles both HTTPS and SSH URLs:
         https://github.com/org/repo.git -> repo
         git@github.com:org/repo.git -> repo
+        https://github.com/org/repo/tree/main -> repo
 
     Returns a sanitized name safe for use as a directory name.
     """
@@ -46,7 +47,17 @@ def _extract_repo_name(url: str) -> str:
         # Handle HTTPS URLs
         parsed = urlparse(url)
         path = parsed.path.strip("/")
-        name = path.split("/")[-1] if "/" in path else path
+        parts = path.split("/") if path else []
+
+        # Strip hosting platform path suffixes that come after the repo name
+        # e.g. /org/repo/tree/main, /org/repo/-/tree/main, /org/repo/blob/main/file
+        trim_markers = {"tree", "blob", "commit", "commits", "issues", "pull", "releases", "-"}
+        for i, part in enumerate(parts):
+            if part in trim_markers and i >= 2:
+                parts = parts[:i]
+                break
+
+        name = parts[-1] if parts else ""
 
     # Sanitize: strip path separators and restrict to safe chars
     name = _SAFE_NAME_RE.sub("", name)
@@ -203,7 +214,8 @@ class CacheManager:
             return False, f"{repo_name}: Pull error - {e}"
 
     def clone_all(
-        self, force: bool = False, parallel: Optional[int] = None
+        self, force: bool = False, parallel: Optional[int] = None,
+        on_progress: Optional[Callable[[bool, str, int, int], None]] = None,
     ) -> Dict[str, List[str]]:
         workers = parallel or self.config.parallel_workers
         repos = self.load_repository_configs()
@@ -214,6 +226,8 @@ class CacheManager:
             return results
 
         self.repos_dir.mkdir(parents=True, exist_ok=True)
+        total = len(repos)
+        completed = 0
 
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {
@@ -225,15 +239,21 @@ class CacheManager:
 
             for future in as_completed(futures):
                 repo = futures[future]
+                completed += 1
                 try:
                     success, message = future.result()
                     if success:
                         results["success"].append(message)
                     else:
                         results["failed"].append(message)
+                    if on_progress:
+                        on_progress(success, message, completed, total)
                 except Exception as e:
                     repo_name = _extract_repo_name(repo["url"])
-                    results["failed"].append(f"{repo_name}: {e}")
+                    msg = f"{repo_name}: {e}"
+                    results["failed"].append(msg)
+                    if on_progress:
+                        on_progress(False, msg, completed, total)
 
         return results
 

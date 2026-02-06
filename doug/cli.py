@@ -85,10 +85,19 @@ def cmd_clone(args: argparse.Namespace) -> int:
 
     force = getattr(args, "force", False)
     parallel = getattr(args, "parallel", None)
+    total = len(repos)
 
-    print(f"🤖 Cloning {len(repos)} repositories...")
-    results = manager.clone_all(force=force, parallel=parallel)
-    _print_results(results)
+    print(f"🤖 Cloning {total} repositories...")
+
+    def on_progress(success, message, completed, total):
+        icon = "✅" if success else "❌"
+        print(f"  {icon} [{completed}/{total}] {message}")
+
+    results = manager.clone_all(force=force, parallel=parallel, on_progress=on_progress)
+
+    succeeded = len(results.get("success", []))
+    failed = len(results.get("failed", []))
+    print(f"\n  Done: {succeeded} succeeded, {failed} failed")
 
     return 0 if not results["failed"] else 1
 
