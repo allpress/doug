@@ -43,12 +43,16 @@ rag = [
 security = [
     "keyring>=24.0.0",
 ]
+mcp = [
+    "mcp>=1.0.0",
+]
 all = [
     "playwright>=1.40.0",
     "requests>=2.31.0",
     "sentence-transformers>=2.2.0",
     "chromadb>=0.4.0",
     "keyring>=24.0.0",
+    "mcp>=1.0.0",
 ]
 dev = [
     "pytest>=7.0",

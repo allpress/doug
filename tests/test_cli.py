@@ -93,6 +93,58 @@ class TestBuildParser:
         assert args.term == "auth flow"
         assert args.top_k == 20
 
+    def test_context_generate_command(self):
+        parser = build_parser()
+        args = parser.parse_args(["context", "generate", "-t", "8000"])
+        assert args.command == "context"
+        assert args.context_command == "generate"
+        assert args.max_tokens == 8000
+
+    def test_context_generate_with_repos(self):
+        parser = build_parser()
+        args = parser.parse_args(["context", "generate", "repo1", "repo2"])
+        assert args.repos == ["repo1", "repo2"]
+
+    def test_context_claudemd_command(self):
+        parser = build_parser()
+        args = parser.parse_args(["context", "claudemd", "myrepo"])
+        assert args.command == "context"
+        assert args.context_command == "claudemd"
+        assert args.repo_name == "myrepo"
+
+    def test_context_claudemd_all(self):
+        parser = build_parser()
+        args = parser.parse_args(["context", "claudemd"])
+        assert args.context_command == "claudemd"
+        assert args.repo_name is None
+
+    def test_context_map_command(self):
+        parser = build_parser()
+        args = parser.parse_args(["context", "map"])
+        assert args.command == "context"
+        assert args.context_command == "map"
+
+    def test_mcp_serve_command(self):
+        parser = build_parser()
+        args = parser.parse_args(["mcp", "serve", "-t", "sse", "--port", "8080"])
+        assert args.command == "mcp"
+        assert args.mcp_command == "serve"
+        assert args.transport == "sse"
+        assert args.port == 8080
+
+    def test_mcp_serve_defaults(self):
+        parser = build_parser()
+        args = parser.parse_args(["mcp", "serve"])
+        assert args.transport == "stdio"
+        assert args.host == "localhost"
+        assert args.port == 3333
+
+    def test_mcp_install_command(self):
+        parser = build_parser()
+        args = parser.parse_args(["mcp", "install"])
+        assert args.command == "mcp"
+        assert args.mcp_command == "install"
+
 
 class TestMainFunction:
     def test_no_args_returns_zero(self):
@@ -192,3 +244,47 @@ class TestMainFunction:
 
         result = main(["--base-path", base_path, "rag"])
         assert result == 1
+
+    def test_context_no_subcommand(self, base_path):
+        """Test that 'doug context' without a subcommand returns 1."""
+        config = DougConfig(base_path=Path(base_path))
+        config.ensure_directories()
+
+        result = main(["--base-path", base_path, "context"])
+        assert result == 1
+
+    def test_context_generate_empty(self, base_path):
+        config = DougConfig(base_path=Path(base_path))
+        config.ensure_directories()
+
+        result = main(["--base-path", base_path, "context", "generate"])
+        assert result == 0
+
+    def test_context_map_empty(self, base_path):
+        config = DougConfig(base_path=Path(base_path))
+        config.ensure_directories()
+
+        result = main(["--base-path", base_path, "context", "map"])
+        assert result == 0
+
+    def test_context_claudemd_missing_repo(self, base_path):
+        config = DougConfig(base_path=Path(base_path))
+        config.ensure_directories()
+
+        result = main(["--base-path", base_path, "context", "claudemd", "nonexistent"])
+        assert result == 0  # prints error content but doesn't fail
+
+    def test_mcp_no_subcommand(self, base_path):
+        """Test that 'doug mcp' without a subcommand returns 1."""
+        config = DougConfig(base_path=Path(base_path))
+        config.ensure_directories()
+
+        result = main(["--base-path", base_path, "mcp"])
+        assert result == 1
+
+    def test_mcp_install(self, base_path):
+        config = DougConfig(base_path=Path(base_path))
+        config.ensure_directories()
+
+        result = main(["--base-path", base_path, "mcp", "install"])
+        assert result == 0

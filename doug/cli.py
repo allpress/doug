@@ -454,6 +454,132 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_context(args: argparse.Namespace) -> int:
+    """Context generation commands for Claude and AI assistants."""
+    from doug.context_generator import ContextGenerator
+
+    config = _get_config(args)
+    generator = ContextGenerator(config=config)
+
+    subcmd = args.context_command
+    if not subcmd:
+        print("No context subcommand specified. Use 'doug context --help' for options.")
+        return 1
+
+    if subcmd == "generate":
+        repos = getattr(args, "repos", None) or None
+        max_tokens = getattr(args, "max_tokens", None)
+        output_file = getattr(args, "output", None)
+
+        document = generator.generate_context_document(
+            repos=repos, max_tokens=max_tokens
+        )
+
+        if output_file:
+            Path(output_file).write_text(document)
+            tokens = generator.estimate_tokens(document)
+            print(f"  Context document written to: {output_file}")
+            print(f"  Estimated tokens: ~{tokens:,}")
+        else:
+            print(document)
+
+    elif subcmd == "claudemd":
+        repo_name = getattr(args, "repo_name", None)
+        output_dir = getattr(args, "output_dir", None)
+
+        if repo_name:
+            content = generator.generate_claude_md(repo_name)
+            if output_dir:
+                out_path = Path(output_dir) / "CLAUDE.md"
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(content)
+                print(f"  CLAUDE.md written to: {out_path}")
+            else:
+                print(content)
+        else:
+            # Generate for all indexed repos
+            repo_names = generator.query_tool.list_repos()
+            if not repo_names:
+                print("No repositories indexed. Run 'doug index' first.")
+                return 1
+
+            for name in repo_names:
+                content = generator.generate_claude_md(name)
+                repo_data = generator.query_tool._load_repo_cache(name)
+                if output_dir:
+                    out_path = Path(output_dir) / name / "CLAUDE.md"
+                    out_path.parent.mkdir(parents=True, exist_ok=True)
+                    out_path.write_text(content)
+                    print(f"  ✅ CLAUDE.md written for: {name}")
+                elif repo_data and repo_data.get("path"):
+                    out_path = Path(repo_data["path"]) / "CLAUDE.md"
+                    out_path.write_text(content)
+                    print(f"  ✅ CLAUDE.md written to: {out_path}")
+                else:
+                    print(f"  ❌ Could not determine path for: {name}")
+
+    elif subcmd == "map":
+        repos = getattr(args, "repos", None) or None
+        output_file = getattr(args, "output", None)
+
+        map_doc = generator.generate_architecture_map(repos=repos)
+
+        if output_file:
+            Path(output_file).write_text(map_doc)
+            print(f"  Architecture map written to: {output_file}")
+        else:
+            print(map_doc)
+
+    else:
+        print(f"Unknown context command: {subcmd}")
+        return 1
+
+    return 0
+
+
+def cmd_mcp(args: argparse.Namespace) -> int:
+    """MCP server commands."""
+    from doug.mcp_server import DougMCPServer, _check_mcp_dependencies
+
+    config = _get_config(args)
+
+    subcmd = args.mcp_command
+    if not subcmd:
+        print("No MCP subcommand specified. Use 'doug mcp --help' for options.")
+        return 1
+
+    if subcmd == "serve":
+        transport = getattr(args, "transport", "stdio")
+        server = DougMCPServer(config=config)
+
+        if transport == "stdio":
+            server.run_stdio()
+        elif transport == "sse":
+            host = getattr(args, "host", "localhost")
+            port = getattr(args, "port", 3333)
+            server.run_sse(host=host, port=port)
+
+    elif subcmd == "install":
+        python_path = sys.executable
+        config_snippet = {
+            "mcpServers": {
+                "doug": {
+                    "command": python_path,
+                    "args": ["-m", "doug", "mcp", "serve"],
+                }
+            }
+        }
+        print("Add this to your Claude Code MCP configuration:\n")
+        print(json.dumps(config_snippet, indent=2))
+        print(f"\nOr run: claude mcp add doug -- {python_path} -m doug mcp serve")
+
+    else:
+        print(f"Unknown MCP command: {subcmd}")
+        return 1
+
+    return 0
+
+
 def cmd_clean(args: argparse.Namespace) -> int:
     """Clean caches and/or cloned repos."""
     config = _get_config(args)
@@ -501,6 +627,11 @@ def build_parser() -> argparse.ArgumentParser:
             "  doug query search \"users\"     # Search across repos\n"
             "  doug query apis               # List all API endpoints\n"
             "  doug rag search \"auth flow\"   # Semantic search across code\n"
+            "  doug context generate         # Generate context for AI conversations\n"
+            "  doug context claudemd myrepo  # Generate CLAUDE.md for a repo\n"
+            "  doug context map              # Cross-repo architecture map\n"
+            "  doug mcp serve                # Start MCP server for Claude\n"
+            "  doug mcp install              # Show MCP configuration\n"
             "  doug status                   # Show system status\n"
         ),
     )
@@ -640,6 +771,70 @@ def build_parser() -> argparse.ArgumentParser:
         "extra_args", nargs="*", help="Extra key=value arguments"
     )
 
+    # ─── context ─────────────────────────────
+    context_parser = subparsers.add_parser(
+        "context", help="Claude-specific context generation"
+    )
+    context_sub = context_parser.add_subparsers(
+        dest="context_command", help="Context commands"
+    )
+
+    # context generate
+    ctx_gen_parser = context_sub.add_parser(
+        "generate", help="Generate paste-able context document for AI conversations"
+    )
+    ctx_gen_parser.add_argument(
+        "repos", nargs="*", help="Specific repos to include (default: all)"
+    )
+    ctx_gen_parser.add_argument(
+        "-t", "--max-tokens", type=int, dest="max_tokens",
+        help="Maximum estimated tokens for output"
+    )
+    ctx_gen_parser.add_argument(
+        "-o", "--output", help="Write to file instead of stdout"
+    )
+
+    # context claudemd
+    ctx_claude_parser = context_sub.add_parser(
+        "claudemd", help="Generate CLAUDE.md files for repos"
+    )
+    ctx_claude_parser.add_argument(
+        "repo_name", nargs="?", help="Specific repo (default: all)"
+    )
+    ctx_claude_parser.add_argument(
+        "-o", "--output-dir", dest="output_dir",
+        help="Output directory (default: write to repo directory)"
+    )
+
+    # context map
+    ctx_map_parser = context_sub.add_parser(
+        "map", help="Generate cross-repo architecture map"
+    )
+    ctx_map_parser.add_argument(
+        "repos", nargs="*", help="Specific repos to include (default: all)"
+    )
+    ctx_map_parser.add_argument(
+        "-o", "--output", help="Write to file instead of stdout"
+    )
+
+    # ─── mcp ─────────────────────────────────
+    mcp_parser = subparsers.add_parser("mcp", help="MCP server for AI assistants")
+    mcp_sub = mcp_parser.add_subparsers(dest="mcp_command", help="MCP commands")
+
+    mcp_serve_parser = mcp_sub.add_parser("serve", help="Start MCP server")
+    mcp_serve_parser.add_argument(
+        "-t", "--transport", choices=["stdio", "sse"], default="stdio",
+        help="Transport type (default: stdio for Claude Code)"
+    )
+    mcp_serve_parser.add_argument(
+        "--host", default="localhost", help="SSE host (default: localhost)"
+    )
+    mcp_serve_parser.add_argument(
+        "--port", type=int, default=3333, help="SSE port (default: 3333)"
+    )
+
+    mcp_sub.add_parser("install", help="Show Claude Code MCP configuration")
+
     # ─── status ───────────────────────────────
     subparsers.add_parser("status", help="Show overall system status")
 
@@ -679,6 +874,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         "query": cmd_query,
         "plugin": cmd_plugin,
         "rag": cmd_rag,
+        "context": cmd_context,
+        "mcp": cmd_mcp,
         "status": cmd_status,
         "clean": cmd_clean,
     }

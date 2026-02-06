@@ -508,6 +508,101 @@ class TestCLIIntegration:
         """Bare 'doug' should exit 0 (prints help banner)."""
         assert main([]) == 0
 
+    def test_context_generate_with_indexed_data(self, tmp_path):
+        """Index a repo, then generate a context document."""
+        base = str(tmp_path / "doug_home")
+        config = DougConfig(base_path=Path(base))
+        config.ensure_directories()
+
+        # Create sample cache data directly
+        repo_data = {
+            "name": "testrepo",
+            "path": str(tmp_path / "testrepo"),
+            "indexed_at": "2026-01-01T00:00:00+00:00",
+            "summary": {"total_files": 10, "source_files": 5, "controllers": 1,
+                        "services": 1, "repositories": 0, "models": 1,
+                        "tests": 2, "configs": 1, "api_endpoints": 2},
+            "structure": {"dirs": {"src": {"dirs": {}, "files": []}}, "files": []},
+            "apis": [{"method": "GET", "path": "/api/items", "file": "src/app.py"}],
+            "services": [{"path": "src/svc.py", "name": "svc.py", "class": "ItemService", "type": "service"}],
+            "models": [{"path": "src/model.py", "name": "model.py", "class": "Item", "type": "model"}],
+            "controllers": [{"path": "src/app.py", "name": "app.py", "class": "ItemController", "type": "controller"}],
+            "configs": [{"path": "config.yml", "name": "config.yml"}],
+            "build": {"type": "pip", "dependencies": []},
+            "readme": "# Test Repo\n\nA test repository.",
+        }
+        (config.repo_cache_dir / "testrepo.json").write_text(json.dumps(repo_data))
+        (config.index_cache_dir / "global_index.json").write_text(json.dumps({
+            "total_repos": 1, "total_files": 10, "total_source_files": 5,
+            "total_apis": 1, "repos": {"testrepo": {"files": 10, "source_files": 5, "apis": 1}},
+        }))
+        (config.index_cache_dir / "apis.json").write_text(json.dumps({
+            "total_apis": 1, "endpoints": [
+                {"method": "GET", "path": "/api/items", "file": "src/app.py", "repo": "testrepo"},
+            ],
+        }))
+
+        assert main(["--base-path", base, "context", "generate"]) == 0
+
+    def test_context_claudemd_with_indexed_data(self, tmp_path):
+        """Index a repo, then generate a CLAUDE.md."""
+        base = str(tmp_path / "doug_home")
+        config = DougConfig(base_path=Path(base))
+        config.ensure_directories()
+
+        repo_data = {
+            "name": "testrepo",
+            "path": str(tmp_path / "testrepo"),
+            "indexed_at": "2026-01-01T00:00:00+00:00",
+            "summary": {"total_files": 5, "source_files": 3, "controllers": 1,
+                        "services": 1, "repositories": 0, "models": 1,
+                        "tests": 0, "configs": 0, "api_endpoints": 1},
+            "structure": {"dirs": {}, "files": []},
+            "apis": [{"method": "GET", "path": "/health", "file": "main.py"}],
+            "services": [], "models": [], "controllers": [],
+            "configs": [],
+            "build": {"type": "pip", "dependencies": []},
+            "readme": "# Test\n\nA test project.",
+        }
+        (config.repo_cache_dir / "testrepo.json").write_text(json.dumps(repo_data))
+
+        assert main(["--base-path", base, "context", "claudemd", "testrepo"]) == 0
+
+    def test_context_map_with_indexed_data(self, tmp_path):
+        """Generate an architecture map from indexed data."""
+        base = str(tmp_path / "doug_home")
+        config = DougConfig(base_path=Path(base))
+        config.ensure_directories()
+
+        repo_data = {
+            "name": "svc",
+            "path": str(tmp_path / "svc"),
+            "indexed_at": "2026-01-01T00:00:00+00:00",
+            "summary": {"total_files": 3, "source_files": 2, "controllers": 0,
+                        "services": 0, "repositories": 0, "models": 0,
+                        "tests": 0, "configs": 0, "api_endpoints": 0},
+            "structure": {"dirs": {}, "files": []},
+            "apis": [], "services": [], "models": [], "controllers": [],
+            "configs": [],
+            "build": {"type": "go", "dependencies": []},
+            "readme": "",
+        }
+        (config.repo_cache_dir / "svc.json").write_text(json.dumps(repo_data))
+        (config.index_cache_dir / "global_index.json").write_text(json.dumps({
+            "total_repos": 1, "total_files": 3, "total_source_files": 2,
+            "total_apis": 0, "repos": {"svc": {"files": 3, "source_files": 2, "apis": 0}},
+        }))
+
+        assert main(["--base-path", base, "context", "map"]) == 0
+
+    def test_mcp_install_output(self, tmp_path):
+        """MCP install should print configuration JSON."""
+        base = str(tmp_path / "doug_home")
+        config = DougConfig(base_path=Path(base))
+        config.ensure_directories()
+
+        assert main(["--base-path", base, "mcp", "install"]) == 0
+
 
 # ---------------------------------------------------------------------------
 # Security regressions
